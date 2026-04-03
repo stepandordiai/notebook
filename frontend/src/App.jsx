@@ -17,6 +17,9 @@ function App() {
 	const [todoEditable, setTodoEditable] = useState(false);
 	const [editableTodoId, setEditableTodoId] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [query, setQuery] = useState("");
+	const [status, setStatus] = useState("");
+	const [method, setMethod] = useState("");
 
 	const [formData, setFormData] = useState({
 		description: "",
@@ -34,6 +37,8 @@ function App() {
 			return;
 		}
 
+		setLoading(true);
+
 		try {
 			const res = await axios.post(
 				"https://notebook-mclx.onrender.com/todos",
@@ -42,11 +47,21 @@ function App() {
 
 			setTodos((prev) => [...prev, res.data]);
 
+			setQuery(
+				`INSERT INTO notebook (description, date)\nVALUES ('${formData.description}', '${formData.date}')\nRETURNING *`,
+			);
+
+			setStatus(res.status);
+			setMethod("POST");
+
 			setFormData({
 				description: "",
 				date: dateNow.toLocaleDateString(),
 			});
-		} catch (error) {}
+		} catch (error) {
+		} finally {
+			setLoading(false);
+		}
 	};
 
 	const handleEditTodo = (id) => {
@@ -58,6 +73,8 @@ function App() {
 	};
 
 	const editTodo = async (id) => {
+		setLoading(true);
+
 		try {
 			const res = await axios.put(
 				`https://notebook-mclx.onrender.com/todos/${id}`,
@@ -71,50 +88,126 @@ function App() {
 				prev.map((todo) => (todo.id === id ? res.data : todo)),
 			);
 
+			setQuery(
+				`UPDATE notebook\nSET description = ${description}, date = ${date}\nWHERE id = ${id}\nRETURNING *`,
+			);
+			setStatus(res.status);
+			setMethod("PUT");
+
 			setTodoEditable(false);
-		} catch (error) {}
+		} catch (error) {
+		} finally {
+			setLoading(false);
+		}
 	};
 
 	const deleteTodo = async (id) => {
+		setLoading(true);
+
 		try {
 			await axios.delete(`https://notebook-mclx.onrender.com/todos/${id}`);
 
 			setTodos((prev) => prev.filter((todo) => todo.id !== id));
-		} catch (error) {}
+
+			setMethod("DELETE");
+			setQuery(`DELETE FROM notebook\nWHERE id = ${id}`);
+			setStatus(res.status);
+		} catch (error) {
+		} finally {
+			setLoading(false);
+		}
 	};
 
 	useEffect(() => {
-		try {
-			const getTodos = async () => {
+		setLoading(true);
+
+		const getTodos = async () => {
+			try {
 				const res = await axios.get("https://notebook-mclx.onrender.com/todos");
 				setTodos(res.data);
-			};
 
-			getTodos();
-		} catch (error) {}
+				setMethod("GET");
+				setQuery(`SELECT * FROM notebook`);
+				setStatus(res.status);
+			} catch (error) {
+			} finally {
+				setLoading(false);
+			}
+		};
+		getTodos();
 	}, []);
 
 	return (
 		<main className="main">
 			<div className="container">
+				<div className="log">
+					<p
+						style={{
+							borderBottom: "1px solid white",
+							paddingBottom: 10,
+							whiteSpace: "pre-wrap",
+						}}
+					>
+						{loading ? "Loading..." : query}
+					</p>
+					<p
+						style={{
+							display: "flex",
+							justifyContent: "space-between",
+							paddingTop: 10,
+						}}
+					>
+						<span
+							style={{
+								display: "flex",
+								justifyContent: "center",
+								alignItems: "center",
+								gap: 5,
+							}}
+						>
+							<span>Status: {loading ? "Loading..." : status} </span>
+							{!loading && (
+								<span
+									style={{
+										display: "inline-block",
+										width: 10,
+										height: 10,
+										borderRadius: "50%",
+										background:
+											status >= 200 && status < 300
+												? "#4ade80"
+												: status >= 400 && status < 500
+													? "#f87171"
+													: "#fff",
+									}}
+								/>
+							)}
+						</span>
+						<span>Method: {loading ? "Loading..." : method}</span>
+					</p>
+				</div>
 				<div style={{ padding: 25 }}>
 					<h1 className="title">Today</h1>
 					<p>{`${dateNumber} ${month} ${yearNow} ${day}`}</p>
 				</div>
 				<ul className="list">
-					{todos.map((todo) => {
+					{todos.map((todo, i) => {
 						return (
 							<li key={todo.id}>
-								{todoEditable && editableTodoId === todo.id ? (
-									<input
-										style={{ marginRight: 5 }}
-										type="text"
-										onChange={(e) => setDescription(e.target.value)}
-										value={description}
-									/>
-								) : (
-									<p>{todo.description}</p>
-								)}
+								<div>
+									<span>{i + 1} </span>
+									{todoEditable && editableTodoId === todo.id ? (
+										<input
+											type="text"
+											onChange={(e) => setDescription(e.target.value)}
+											value={description}
+										/>
+									) : (
+										<span style={{ wordBreak: "break-all" }}>
+											{todo.description}
+										</span>
+									)}
+								</div>
 								<div
 									style={{
 										display: "flex",
@@ -189,7 +282,7 @@ function App() {
 					type="text"
 					placeholder="Description"
 				/>
-				<button type="submit">Add</button>
+				<button type="submit">{loading ? "Loading..." : "Add"}</button>
 			</form>
 		</main>
 	);
